@@ -1,0 +1,22 @@
+{
+  "name": "grocery-list",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A simple shared grocery list for the family",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev:api": "npm run dev -w backend",
+    "dev:web": "npm run dev -w frontend",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
+    "test": "npm run test -w backend",
+    "deploy": "./scripts/deploy.sh"
+  },
+  "devDependencies": {
+    "npm-run-all2": "^9.0.4"
+  }
+}
