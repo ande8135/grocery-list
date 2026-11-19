@@ -14,6 +14,12 @@ resource "aws_dynamodb_table" "items" {
     type = "S"
   }
 
+  # Expired invites are cleaned up automatically (the service also checks expiry itself).
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
   point_in_time_recovery {
     enabled = true
   }

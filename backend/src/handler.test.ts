@@ -1,98 +1,73 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { handler as authorizer } from "./authorizer";
-import { createHandler } from "./handler";
-import { MemoryRepo } from "./memoryRepo";
+import { createHandler, ROUTE_KEYS } from "./handler";
+import { MemoryStore } from "./memoryStore";
+import { Service } from "./service";
 
-let repo: MemoryRepo;
-let call: (routeKey: string, opts?: { id?: string; body?: unknown }) => Promise<{ status: number; json: any }>;
+let handler: ReturnType<typeof createHandler>;
 
 beforeEach(() => {
-  repo = new MemoryRepo();
-  let tick = 0;
-  const handler = createHandler(repo, () => new Date(Date.UTC(2026, 0, 1, 0, 0, tick++)));
-  call = async (routeKey, { id, body } = {}) => {
-    const res = (await handler({
-      routeKey,
-      pathParameters: id ? { id } : undefined,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    } as unknown as APIGatewayProxyEventV2)) as APIGatewayProxyStructuredResultV2;
-    return { status: res.statusCode ?? 0, json: res.body ? JSON.parse(res.body) : undefined };
-  };
+  handler = createHandler(new Service(new MemoryStore()));
 });
 
-describe("items API", () => {
-  it("starts empty", async () => {
-    expect(await call("GET /api/items")).toEqual({ status: 200, json: { items: [] } });
+async function call(
+  routeKey: string,
+  opts: { user?: string | null; params?: Record<string, string>; body?: unknown; rawBody?: string } = {},
+) {
+  const user = opts.user === undefined ? "alice" : opts.user;
+  const res = (await handler({
+    routeKey,
+    pathParameters: opts.params,
+    body: opts.rawBody ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body)),
+    requestContext: {
+      authorizer: user ? { lambda: { userId: `u-${user}`, email: `${user}@example.test`, name: user } } : undefined,
+    },
+  } as unknown as APIGatewayProxyEventV2)) as APIGatewayProxyStructuredResultV2;
+  return { status: res.statusCode ?? 0, json: res.body ? JSON.parse(res.body) : undefined };
+}
+
+describe("HTTP layer", () => {
+  it("rejects calls with no authorizer identity", async () => {
+    expect((await call("GET /api/me", { user: null })).status).toBe(401);
   });
 
-  it("creates an item with a client-supplied id and trims the name", async () => {
-    const res = await call("POST /api/items", { body: { id: "abc-12345", name: "  Whole   milk " } });
-    expect(res.status).toBe(201);
-    expect(res.json.item).toMatchObject({ id: "abc-12345", name: "Whole milk", checked: false });
-    expect((await call("GET /api/items")).json.items).toHaveLength(1);
-  });
-
-  it("generates an id when none is supplied", async () => {
-    const res = await call("POST /api/items", { body: { name: "Eggs" } });
-    expect(res.json.item.id).toMatch(/^[0-9a-f-]{36}$/);
-  });
-
-  it("rejects duplicates ids, bad ids and bad names", async () => {
-    await call("POST /api/items", { body: { id: "abc-12345", name: "Eggs" } });
-    expect((await call("POST /api/items", { body: { id: "abc-12345", name: "Eggs" } })).status).toBe(409);
-    expect((await call("POST /api/items", { body: { id: "no way!", name: "Eggs" } })).status).toBe(400);
-    expect((await call("POST /api/items", { body: { name: "   " } })).status).toBe(400);
-    expect((await call("POST /api/items", { body: { name: "x".repeat(81) } })).status).toBe(400);
-    expect((await call("POST /api/items", { body: { name: 5 } })).status).toBe(400);
-    expect((await call("POST /api/items")).status).toBe(400);
-  });
-
-  it("toggles checked and bumps updatedAt", async () => {
-    const { json } = await call("POST /api/items", { body: { name: "Bread" } });
-    const id = json.item.id;
-    const res = await call("PATCH /api/items/{id}", { id, body: { checked: true } });
-    expect(res.status).toBe(200);
-    expect(res.json.item.checked).toBe(true);
-    expect(res.json.item.updatedAt > json.item.updatedAt).toBe(true);
-  });
-
-  it("validates patches and 404s on unknown ids", async () => {
-    expect((await call("PATCH /api/items/{id}", { id: "nope", body: { checked: true } })).status).toBe(404);
-    expect((await call("PATCH /api/items/{id}", { id: "nope", body: {} })).status).toBe(400);
-    expect((await call("PATCH /api/items/{id}", { id: "nope", body: { checked: "yes" } })).status).toBe(400);
-  });
-
-  it("deletes items idempotently", async () => {
-    const { json } = await call("POST /api/items", { body: { name: "Bread" } });
-    expect((await call("DELETE /api/items/{id}", { id: json.item.id })).status).toBe(204);
-    expect((await call("DELETE /api/items/{id}", { id: json.item.id })).status).toBe(204);
-    expect((await call("GET /api/items")).json.items).toEqual([]);
-  });
-
-  it("clears only checked items", async () => {
-    const a = (await call("POST /api/items", { body: { name: "A" } })).json.item.id;
-    await call("POST /api/items", { body: { name: "B" } });
-    await call("PATCH /api/items/{id}", { id: a, body: { checked: true } });
-    expect((await call("POST /api/items/clear-checked")).json).toEqual({ removed: 1 });
-    expect((await call("GET /api/items")).json.items.map((i: { name: string }) => i.name)).toEqual(["B"]);
-  });
-
-  it("404s on unknown routes", async () => {
+  it("404s unknown routes", async () => {
     expect((await call("GET /nope")).status).toBe(404);
   });
-});
 
-describe("origin-verify authorizer", () => {
-  it("accepts only the matching secret", async () => {
-    process.env.ORIGIN_VERIFY_SECRET = "s3cret";
-    expect(await authorizer({ headers: { "x-origin-verify": "s3cret" } })).toEqual({ isAuthorized: true });
-    expect(await authorizer({ headers: { "x-origin-verify": "wrong!" } })).toEqual({ isAuthorized: false });
-    expect(await authorizer({ headers: {} })).toEqual({ isAuthorized: false });
+  it("returns 400 for malformed JSON", async () => {
+    expect((await call("POST /api/households", { rawBody: "{nope" })).status).toBe(400);
+    expect((await call("POST /api/households", { rawBody: "[1]" })).status).toBe(400);
   });
 
-  it("fails closed when no secret is configured", async () => {
-    process.env.ORIGIN_VERIFY_SECRET = "";
-    expect(await authorizer({ headers: { "x-origin-verify": "" } })).toEqual({ isAuthorized: false });
+  it("walks the happy path end to end with the right status codes", async () => {
+    expect((await call("GET /api/me")).json.households).toEqual([]);
+
+    const created = await call("POST /api/households", { body: { name: "Home" } });
+    expect(created.status).toBe(201);
+    const hid = created.json.household.id;
+    const lid = created.json.lists[0].id;
+    expect((await call("POST /api/households", { body: { name: "Again" } })).status).toBe(409);
+
+    const item = await call("POST /api/households/{hid}/lists/{lid}/items", { params: { hid, lid }, body: { name: "Milk" } });
+    expect(item.status).toBe(201);
+    const listed = await call("GET /api/households/{hid}/lists/{lid}/items", { params: { hid, lid } });
+    expect(listed.json.items).toHaveLength(1);
+
+    const invite = await call("POST /api/households/{hid}/invites", { params: { hid } });
+    expect(invite.status).toBe(201);
+    const token = invite.json.token;
+    expect((await call("GET /api/invites/{token}", { user: "bob", params: { token } })).json.householdName).toBe("Home");
+    expect((await call("POST /api/invites/{token}/accept", { user: "bob", params: { token } })).status).toBe(201);
+    expect((await call("DELETE /api/households/{hid}/members/{uid}", { user: "bob", params: { hid, uid: "u-bob" } })).status).toBe(204);
+    expect((await call("GET /api/households/{hid}", { user: "bob", params: { hid } })).status).toBe(404);
+  });
+
+  it("covers exactly the routes API Gateway declares in Terraform", () => {
+    const tf = readFileSync(new URL("../../infra/api_gateway.tf", import.meta.url), "utf8");
+    const block = /routes\s*=\s*\[([\s\S]*?)\]/.exec(tf)?.[1] ?? "";
+    const declared = [...block.matchAll(/"([A-Z]+ \/[^"]*)"/g)].map((m) => m[1]);
+    expect(declared.sort()).toEqual([...ROUTE_KEYS].sort());
   });
 });

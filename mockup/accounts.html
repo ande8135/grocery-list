@@ -1,0 +1,794 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Groceries — accounts &amp; households mockup</title>
+<style>
+:root {
+  --bg: #f7f3ec;
+  --surface: #ffffff;
+  --ink: #23302a;
+  --muted: #7b857e;
+  --line: #eee7da;
+  --accent: #2f7d5b;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3f1e9;
+  --danger: #c2543f;
+  --shadow: 0 1px 2px rgba(35, 48, 42, 0.06), 0 6px 20px rgba(35, 48, 42, 0.06);
+  --radius: 18px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131915;
+    --surface: #1c2420;
+    --ink: #ebf1ec;
+    --muted: #8c988f;
+    --line: #29322d;
+    --accent: #5cbf8f;
+    --accent-ink: #0e1511;
+    --accent-soft: #213329;
+    --danger: #e08a76;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --bg: #131915;
+  --surface: #1c2420;
+  --ink: #ebf1ec;
+  --muted: #8c988f;
+  --line: #29322d;
+  --accent: #5cbf8f;
+  --accent-ink: #0e1511;
+  --accent-soft: #213329;
+  --danger: #e08a76;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ---------- Layout ---------- */
+
+.app {
+  min-height: var(--app-h, 100dvh);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.header {
+  padding: calc(28px + env(safe-area-inset-top)) 22px 14px;
+}
+.header h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  min-height: 1.3em;
+}
+
+.main {
+  flex: 1;
+  padding: 6px 16px 24px;
+}
+
+.banner {
+  margin: 0 16px 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---------- Sections & rows ---------- */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 6px 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.section-head:first-child {
+  margin-top: 6px;
+}
+.link-btn {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 8px 6px;
+  margin: -8px -6px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  border-top: 1px solid var(--line);
+  animation: row-in 0.22s ease-out;
+}
+.row:first-child {
+  border-top: 0;
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  align-self: stretch;
+  padding: 0 4px 0 16px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.row-main:active {
+  background: var(--accent-soft);
+}
+
+.check {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--muted) 55%, transparent);
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.check svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 0.15s, transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.row.done .check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.row.done .check svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.name {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.row.done .name {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  font-weight: 500;
+}
+
+.remove {
+  flex: none;
+  width: 52px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  opacity: 0.7;
+}
+.remove svg {
+  width: 18px;
+  height: 18px;
+}
+.remove:active {
+  color: var(--danger);
+  opacity: 1;
+}
+
+/* ---------- Empty state ---------- */
+
+.empty {
+  text-align: center;
+  padding: 36px 12px 0;
+}
+.empty svg {
+  width: 96px;
+  height: 96px;
+  color: var(--accent);
+}
+.empty h2 {
+  margin: 14px 0 4px;
+  font-size: 22px;
+}
+.empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+.chip {
+  padding: 11px 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 16px;
+  font-weight: 600;
+}
+.chip::before {
+  content: "+";
+  color: var(--accent);
+  font-weight: 800;
+  margin-right: 6px;
+}
+.chip:active {
+  background: var(--accent-soft);
+}
+
+.skeleton {
+  height: 60px;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--surface), var(--line), var(--surface));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+  margin-bottom: 10px;
+}
+
+/* ---------- Add bar ---------- */
+
+.addbar {
+  position: sticky;
+  bottom: 0;
+  padding: 18px 16px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--bg) 28%);
+}
+.addbar form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 6px 6px 22px;
+  box-shadow: var(--shadow), 0 0 0 1px var(--line);
+  transition: box-shadow 0.15s;
+}
+.addbar form:focus-within {
+  box-shadow: var(--shadow), 0 0 0 2px var(--accent);
+}
+.addbar input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px; /* 16px+ stops iOS Safari zooming on focus */
+  font-weight: 500;
+  padding: 10px 0;
+}
+.addbar input::placeholder {
+  color: var(--muted);
+  font-weight: 500;
+}
+.add-btn {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  transition: transform 0.12s, opacity 0.15s;
+}
+.add-btn svg {
+  width: 22px;
+  height: 22px;
+}
+.add-btn:active {
+  transform: scale(0.92);
+}
+.add-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---------- Dictation ---------- */
+
+.add-btn.mic.on {
+  background: var(--danger);
+  color: #fff;
+  animation: mic-pulse 1.4s infinite;
+}
+.listening {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: row-in 0.2s ease-out;
+}
+.listening strong {
+  font-size: 15px;
+}
+.listening p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.pulse {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: mic-pulse 1.4s infinite;
+}
+@keyframes mic-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+
+/* ================= Accounts, households & sheets ================= */
+
+.center-screen {
+  justify-content: center;
+  gap: 22px;
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+}
+.center-screen .banner {
+  margin: 0;
+}
+.hero {
+  text-align: center;
+}
+.hero svg {
+  width: 88px;
+  height: 88px;
+  color: var(--accent);
+}
+.hero h1 {
+  margin: 12px 0 6px;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.4;
+}
+.hero strong {
+  color: var(--ink);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inline-form {
+  display: flex;
+  gap: 10px;
+}
+.fineprint {
+  margin: 4px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.link-btn.center {
+  align-self: center;
+  margin: 0;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 15px 18px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px; /* 16px+ stops iOS Safari zooming on focus */
+  box-shadow: 0 0 0 1px var(--line);
+  outline: 0;
+}
+.field:focus {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.field::placeholder {
+  color: var(--muted);
+}
+
+.btn {
+  padding: 15px 20px;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+  transition: transform 0.12s, opacity 0.15s;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-secondary {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow);
+}
+.btn-text {
+  color: var(--muted);
+  padding: 10px;
+}
+.btn-danger {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.banner.floating {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 16px;
+  right: 16px;
+  z-index: 20;
+  margin: 0;
+}
+
+/* Household pill + list tabs */
+.header .hh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px -6px;
+  padding: 5px 10px 5px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.hh-pill svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 17px;
+}
+.avatar.sm {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding: 4px 16px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  flex: none;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tab.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: none;
+}
+.tab.add {
+  background: none;
+  color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Bottom sheet */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(10, 16, 12, 0.45);
+  animation: fade-in 0.18s ease-out;
+}
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: 26px 26px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: sheet-up 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.sheet-grab {
+  align-self: center;
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.sheet-title {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.sheet-h {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sheet-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.sheet-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.members,
+.hh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.members li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px 10px 14px;
+  border-top: 1px solid var(--line);
+}
+.members li:first-child,
+.hh-list li:first-child {
+  border-top: 0;
+}
+.members .who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.members .who span {
+  color: var(--muted);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.members .remove {
+  align-self: auto;
+  height: 44px;
+}
+.hh-list li {
+  border-top: 1px solid var(--line);
+}
+.hh-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px 18px;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: left;
+}
+.hh-list .tick {
+  color: var(--accent);
+  display: grid;
+}
+.hh-list .tick svg {
+  width: 20px;
+  height: 20px;
+}
+.invite-box {
+  display: flex;
+  gap: 10px;
+}
+.invite-box .btn {
+  flex: none;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+/* ---------- Mockup-only: phone frames for desktop review ---------- */
+.review { min-height: 100vh; background: #e9e4da; padding: 40px 20px 60px; font-family: ui-rounded, system-ui, sans-serif; color: #23302a; }
+.review > h1 { text-align: center; margin: 0; font-size: 22px; }
+.review > p { text-align: center; margin: 6px auto 32px; color: #6b746e; max-width: 520px; font-size: 15px; line-height: 1.4; }
+.stage { display: flex; flex-wrap: wrap; justify-content: center; gap: 36px; }
+.phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.phone-wrap .label { font-weight: 700; font-size: 14px; letter-spacing: .02em; }
+.phone-wrap .label small { display:block; font-weight: 500; color: #6b746e; text-align:center; }
+.phone { width: 390px; height: 800px; border-radius: 48px; background: #111; padding: 10px; box-shadow: 0 30px 60px rgba(0,0,0,.25); }
+.screen { --app-h: 100%; height: 100%; border-radius: 38px; overflow: auto; background: var(--bg); position: relative; scrollbar-width: none; }
+.screen::-webkit-scrollbar { display: none; }
+.screen .header { padding-top: 54px; }
+.review .row, .review .listening { animation: none; } /* the mockup re-renders wholesale; avoid replaying the entry animation */
+@media (max-width: 480px) {
+  .review { padding: 0; background: none; }
+  .review > h1, .review > p, .phone-wrap .label, .phone-wrap:not(:first-child) { display: none; }
+  .phone { width: 100%; height: 100dvh; border-radius: 0; padding: 0; box-shadow: none; background: none; }
+  .screen { border-radius: 0; }
+  .screen .header { padding-top: 28px; }
+}
+
+.screen.static { overflow: hidden; }
+.screen .sheet-backdrop { position: absolute; }
+.screen .sheet { max-height: 82%; }
+.screen .row, .screen .listening { animation: none; }
+.screen .sheet-backdrop, .screen .sheet { animation: none; }
+.screen .center-screen { padding-top: 40px; }
+</style></head><body><div class="review"><h1>Groceries — accounts &amp; households</h1>
+<p>Static screens for the sign-in and household flow (not interactive). Names and emails are made up.</p><div class="stage"><div class="phone-wrap"><div class="phone"><div class="screen static"><div class="app center-screen"><div class="hero"><svg viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 34h48l-4 44a6 6 0 0 1-6 5.5H34a6 6 0 0 1-6-5.5z" fill="currentColor" fill-opacity=".1"/><path d="M36 34v-6a12 12 0 0 1 24 0v6"/><path d="M42 58l5 5 9-10"/></svg><h1>Groceries</h1><p>One shared list for the whole household.</p></div><div class="stack"><button class="btn btn-secondary">Continue with Google</button><button class="btn btn-secondary">Continue with Apple</button><button class="btn btn-secondary">Continue with Microsoft</button><p class="fineprint">We only use your name and email to show who’s in your household.</p></div></div></div></div><div class="label">1 · Sign in<small>Google, Apple or any other provider</small></div></div><div class="phone-wrap"><div class="phone"><div class="screen static"><div class="app center-screen"><div class="hero"><svg viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 34h48l-4 44a6 6 0 0 1-6 5.5H34a6 6 0 0 1-6-5.5z" fill="currentColor" fill-opacity=".1"/><path d="M36 34v-6a12 12 0 0 1 24 0v6"/><path d="M42 58l5 5 9-10"/></svg><h1>Hi, Alice!</h1><p>Let’s set up your household. Everyone in it shares the same lists.</p></div><div class="stack"><input class="field" placeholder="Household name, e.g. The Smiths" value="The Smiths"><button class="btn btn-primary" type="button">Create household</button></div><div class="divider">or join one</div><div class="inline-form"><input class="field" placeholder="Paste an invite link"><button class="btn btn-secondary" type="button">Join</button></div><button class="link-btn center">Sign out</button></div></div></div><div class="label">2 · First time<small>Create a household (one per person) or join with a link</small></div></div><div class="phone-wrap"><div class="phone"><div class="screen static"><div class="app center-screen"><div class="hero"><svg viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 34h48l-4 44a6 6 0 0 1-6 5.5H34a6 6 0 0 1-6-5.5z" fill="currentColor" fill-opacity=".1"/><path d="M36 34v-6a12 12 0 0 1 24 0v6"/><path d="M42 58l5 5 9-10"/></svg><h1>You’re invited</h1><p>Join <strong>The Smiths</strong> to share their grocery lists.</p></div><div class="stack"><button class="btn btn-primary">Join household</button><button class="btn btn-text">Not now</button></div></div></div></div><div class="label">3 · Invite link<small>Opened from a link someone sends you</small></div></div><div class="phone-wrap"><div class="phone"><div class="screen static"><div class="app"><header class="header"><button class="hh-pill"><span class="avatar sm">T</span><span>The Smiths</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button><h1>Groceries</h1><p>3 to get · 1 in the cart</p></header>
+<nav class="tabs"><button class="tab active">Groceries</button><button class="tab">Costco</button><button class="tab">Hardware</button><button class="tab add">+ New list</button></nav>
+<main class="main"><ul class="list"><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Milk</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Sourdough bread</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Bananas</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul><div class="section-head"><span>In the cart</span><button class="link-btn">Clear</button></div><ul class="list"><li class="row done"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Eggs</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul></main>
+<div class="addbar"><form><input placeholder="Add an item…"><button class="add-btn mic" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></button></form></div></div></div></div><div class="label">4 · Home<small>Household pill, list tabs (up to 10 lists), the list</small></div></div><div class="phone-wrap"><div class="phone"><div class="screen static"><div class="app"><header class="header"><button class="hh-pill"><span class="avatar sm">T</span><span>The Smiths</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button><h1>Groceries</h1><p>3 to get · 1 in the cart</p></header>
+<nav class="tabs"><button class="tab active">Groceries</button><button class="tab">Costco</button><button class="tab">Hardware</button><button class="tab add">+ New list</button></nav>
+<main class="main"><ul class="list"><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Milk</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Sourdough bread</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Bananas</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul><div class="section-head"><span>In the cart</span><button class="link-btn">Clear</button></div><ul class="list"><li class="row done"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Eggs</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul></main>
+<div class="addbar"><form><input placeholder="Add an item…"><button class="add-btn mic" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></button></form></div></div><div class="sheet-backdrop"><div class="sheet"><div class="sheet-grab"></div><h2 class="sheet-title">The Smiths</h2>
+<h3 class="sheet-h">Members</h3><ul class="members"><li><div class="avatar">A</div><div class="who"><strong>Alice (you)</strong><span>Owner</span></div></li><li><div class="avatar">B</div><div class="who"><strong>Bob</strong><span>bob@example.com</span></div><button class=remove><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li><div class="avatar">C</div><div class="who"><strong>Carol</strong><span>carol@example.com</span></div><button class=remove><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul>
+<h3 class="sheet-h">Invite someone</h3><div class="invite-box"><input class="field" readonly value="https://groceries.example.com/?invite=k3J9…"><button class="btn btn-secondary">Copy</button></div>
+<p class="sheet-note">The link works once and expires in 7 days. Send it to the person you’re inviting.</p>
+<div class="sheet-footer"><p class="fineprint">Signed in as Alice · alice@example.com</p><button class="btn btn-text">Sign out</button></div></div></div></div></div><div class="label">5 · Household (owner)<small>Members, invite link, remove people</small></div></div><div class="phone-wrap"><div class="phone"><div class="screen static"><div class="app"><header class="header"><button class="hh-pill"><span class="avatar sm">T</span><span>The Smiths</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button><h1>Groceries</h1><p>3 to get · 1 in the cart</p></header>
+<nav class="tabs"><button class="tab active">Groceries</button><button class="tab">Costco</button><button class="tab">Hardware</button><button class="tab add">+ New list</button></nav>
+<main class="main"><ul class="list"><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Milk</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Sourdough bread</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Bananas</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul><div class="section-head"><span>In the cart</span><button class="link-btn">Clear</button></div><ul class="list"><li class="row done"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Eggs</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul></main>
+<div class="addbar"><form><input placeholder="Add an item…"><button class="add-btn mic" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></button></form></div></div><div class="sheet-backdrop"><div class="sheet"><div class="sheet-grab"></div><h2 class="sheet-title">The Smiths</h2>
+<h3 class="sheet-h">Members</h3><ul class="members"><li><div class="avatar">A</div><div class="who"><strong>Alice</strong><span>Owner</span></div></li><li><div class="avatar">B</div><div class="who"><strong>Bob (you)</strong><span>bob@example.com</span></div></li></ul>
+<h3 class="sheet-h">Your households</h3><ul class="hh-list"><li><button><span>The Smiths</span><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button></li><li><button><span>Bob’s place</span></button></li></ul>
+<div class="sheet-footer"><button class="btn btn-danger">Leave household</button><p class="fineprint">Signed in as Bob · bob@example.com</p><button class="btn btn-text">Sign out</button></div></div></div></div></div><div class="label">6 · Household (member)<small>Switch households, or leave one</small></div></div><div class="phone-wrap"><div class="phone"><div class="screen static"><div class="app"><header class="header"><button class="hh-pill"><span class="avatar sm">T</span><span>The Smiths</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button><h1>Groceries</h1><p>3 to get · 1 in the cart</p></header>
+<nav class="tabs"><button class="tab active">Groceries</button><button class="tab">Costco</button><button class="tab">Hardware</button><button class="tab add">+ New list</button></nav>
+<main class="main"><ul class="list"><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Milk</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Sourdough bread</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li><li class="row"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Bananas</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul><div class="section-head"><span>In the cart</span><button class="link-btn">Clear</button></div><ul class="list"><li class="row done"><button class="row-main"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="name">Eggs</span></button><button class="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li></ul></main>
+<div class="addbar"><form><input placeholder="Add an item…"><button class="add-btn mic" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></button></form></div></div><div class="sheet-backdrop"><div class="sheet"><div class="sheet-grab"></div><h2 class="sheet-title">New list</h2>
+<form class="stack"><input class="field" placeholder="e.g. Costco, Hardware store" value="Pharmacy"><button class="btn btn-primary" type="button">Create list</button></form></div></div></div></div><div class="label">7 · New list<small>Any member can add lists</small></div></div></div></div></body></html>

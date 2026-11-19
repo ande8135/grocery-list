@@ -26,7 +26,7 @@ URL=$(terraform -chdir=infra output -raw site_url)
 echo "==> Uploading site to s3://$BUCKET"
 # Hashed assets can be cached forever; everything else must be revalidated.
 aws s3 sync frontend/dist "s3://$BUCKET" --delete \
-  --exclude "index.html" --exclude "manifest.webmanifest" \
+  --exclude "index.html" --exclude "manifest.webmanifest" --exclude "config.json" \
   --cache-control "public,max-age=31536000,immutable"
 aws s3 cp frontend/dist/index.html "s3://$BUCKET/index.html" --cache-control "no-cache"
 aws s3 cp frontend/dist/manifest.webmanifest "s3://$BUCKET/manifest.webmanifest" \

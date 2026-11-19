@@ -19,24 +19,34 @@ function capitalize(name: string): string {
  * family sees changes within a few seconds. Polling is paused while a write is
  * in flight so a stale response can't overwrite an optimistic change.
  */
-export function useItems() {
+export function useItems(hid: string, lid: string) {
   const [items, setItems] = useState<Item[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const inflight = useRef(0);
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const key = `${hid}/${lid}`;
+  const keyRef = useRef(key);
+  keyRef.current = key;
+
+  // Switching lists: show the skeleton until the new list arrives.
+  useEffect(() => {
+    setItems([]);
+    setStatus("loading");
+  }, [key]);
 
   const refresh = useCallback(async () => {
     if (inflight.current > 0) return;
+    const requested = `${hid}/${lid}`;
     try {
-      const next = await api.list();
-      if (inflight.current > 0) return;
+      const next = await api.items(hid, lid);
+      if (inflight.current > 0 || keyRef.current !== requested) return;
       setItems(next);
       setStatus("ready");
     } catch {
       setStatus("error");
     }
-  }, []);
+  }, [hid, lid]);
 
   useEffect(() => {
     void refresh();
@@ -75,10 +85,10 @@ export function useItems() {
       const now = new Date().toISOString();
       return mutate(
         (prev) => prev.map((i) => (i.id === id ? { ...i, checked, updatedAt: now } : i)),
-        () => api.setChecked(id, checked),
+        () => api.setChecked(hid, lid, id, checked),
       );
     },
-    [mutate],
+    [mutate, hid, lid],
   );
 
   const add = useCallback(
@@ -95,10 +105,10 @@ export function useItems() {
       const now = new Date().toISOString();
       void mutate(
         (prev) => [...prev, { id, name, checked: false, createdAt: now, updatedAt: now }],
-        () => api.add(id, name),
+        () => api.addItem(hid, lid, id, name),
       );
     },
-    [mutate, setChecked],
+    [mutate, setChecked, hid, lid],
   );
 
   const toggle = useCallback(
@@ -113,18 +123,18 @@ export function useItems() {
     (id: string) =>
       void mutate(
         (prev) => prev.filter((i) => i.id !== id),
-        () => api.remove(id),
+        () => api.removeItem(hid, lid, id),
       ),
-    [mutate],
+    [mutate, hid, lid],
   );
 
   const clearChecked = useCallback(
     () =>
       void mutate(
         (prev) => prev.filter((i) => !i.checked),
-        () => api.clearChecked(),
+        () => api.clearChecked(hid, lid),
       ),
-    [mutate],
+    [mutate, hid, lid],
   );
 
   return { items, status, add, toggle, remove, clearChecked };

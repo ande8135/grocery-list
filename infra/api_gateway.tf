@@ -11,26 +11,38 @@ resource "aws_apigatewayv2_integration" "api" {
   payload_format_version = "2.0"
 }
 
-# Only requests carrying CloudFront's secret header are authorized. If the header
-# is absent, API Gateway rejects the call (401) without invoking any Lambda.
+# A request is authorized only if it carries CloudFront's secret header AND a valid
+# Cognito ID token. If either header is absent, API Gateway rejects the call (401)
+# without invoking any Lambda.
 resource "aws_apigatewayv2_authorizer" "origin_verify" {
   api_id                            = aws_apigatewayv2_api.api.id
-  name                              = "cloudfront-origin-verify"
+  name                              = "cloudfront-and-signin"
   authorizer_type                   = "REQUEST"
   authorizer_uri                    = aws_lambda_function.authorizer.invoke_arn
   authorizer_payload_format_version = "2.0"
   enable_simple_responses           = true
-  identity_sources                  = ["$request.header.x-origin-verify"]
-  authorizer_result_ttl_in_seconds  = 300
+  identity_sources                  = ["$request.header.x-origin-verify", "$request.header.Authorization"]
+  authorizer_result_ttl_in_seconds  = 60
 }
 
 locals {
+  # Keep in sync with backend/src/handler.ts (a unit test fails if they drift).
   routes = [
-    "GET /api/items",
-    "POST /api/items",
-    "POST /api/items/clear-checked",
-    "PATCH /api/items/{id}",
-    "DELETE /api/items/{id}",
+    "GET /api/me",
+    "POST /api/households",
+    "GET /api/households/{hid}",
+    "POST /api/households/{hid}/invites",
+    "DELETE /api/households/{hid}/members/{uid}",
+    "POST /api/households/{hid}/lists",
+    "PATCH /api/households/{hid}/lists/{lid}",
+    "DELETE /api/households/{hid}/lists/{lid}",
+    "GET /api/households/{hid}/lists/{lid}/items",
+    "POST /api/households/{hid}/lists/{lid}/items",
+    "POST /api/households/{hid}/lists/{lid}/items/clear-checked",
+    "PATCH /api/households/{hid}/lists/{lid}/items/{id}",
+    "DELETE /api/households/{hid}/lists/{lid}/items/{id}",
+    "GET /api/invites/{token}",
+    "POST /api/invites/{token}/accept",
   ]
 }
 

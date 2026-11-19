@@ -2,23 +2,26 @@
  * Local dev API: runs the real handler against an in-memory store so you can
  * work on the UI without AWS. `npm run dev` starts this alongside Vite, which
  * proxies /api to it.
+ *
+ * There is no Cognito here. The dev "sign in" screen sends `Authorization:
+ * Bearer dev:<name>` and this server trusts it, so you can be several people
+ * (alice, bob...) to try invites and households.
  */
 import { createServer } from "node:http";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
-import { createHandler } from "./handler";
-import { MemoryRepo } from "./memoryRepo";
+import { createHandler, ROUTE_KEYS } from "./handler";
+import { MemoryStore } from "./memoryStore";
+import { Service } from "./service";
 
-const repo = new MemoryRepo();
-const handler = createHandler(repo);
+const handler = createHandler(new Service(new MemoryStore()));
 const port = Number(process.env.PORT ?? 3001);
 
-const ROUTES: [method: string, pattern: RegExp, routeKey: string][] = [
-  ["GET", /^\/api\/items$/, "GET /api/items"],
-  ["POST", /^\/api\/items$/, "POST /api/items"],
-  ["POST", /^\/api\/items\/clear-checked$/, "POST /api/items/clear-checked"],
-  ["PATCH", /^\/api\/items\/([^/]+)$/, "PATCH /api/items/{id}"],
-  ["DELETE", /^\/api\/items\/([^/]+)$/, "DELETE /api/items/{id}"],
-];
+const routes = ROUTE_KEYS.map((key) => {
+  const [method, path] = key.split(" ") as [string, string];
+  const names: string[] = [];
+  const pattern = new RegExp("^" + path.replace(/\{(\w+)\}/g, (_, n: string) => (names.push(n), "([^/]+)")) + "$");
+  return { key, method, pattern, names };
+});
 
 createServer(async (req, res) => {
   const path = new URL(req.url ?? "/", "http://localhost").pathname;
@@ -27,21 +30,33 @@ createServer(async (req, res) => {
   const body = Buffer.concat(chunks).toString("utf8");
 
   let routeKey = "$default";
-  let id: string | undefined;
-  for (const [method, pattern, key] of ROUTES) {
-    const m = pattern.exec(path);
-    if (m && req.method === method) {
-      routeKey = key;
-      id = m[1];
+  const pathParameters: Record<string, string> = {};
+  for (const r of routes) {
+    const m = r.pattern.exec(path);
+    if (m && req.method === r.method) {
+      routeKey = r.key;
+      r.names.forEach((n, i) => (pathParameters[n] = decodeURIComponent(m[i + 1]!)));
       break;
     }
   }
 
+  const devUser = /^Bearer dev:(\w+)$/.exec(req.headers.authorization ?? "")?.[1];
   const event = {
     routeKey,
-    pathParameters: id ? { id } : undefined,
+    pathParameters,
     body: body || undefined,
     isBase64Encoded: false,
+    requestContext: {
+      authorizer: devUser
+        ? {
+            lambda: {
+              userId: `dev-${devUser}`,
+              email: `${devUser}@example.test`,
+              name: devUser[0]!.toUpperCase() + devUser.slice(1),
+            },
+          }
+        : undefined,
+    },
   } as unknown as APIGatewayProxyEventV2;
 
   const result = (await handler(event)) as { statusCode: number; headers?: Record<string, string>; body?: string };
