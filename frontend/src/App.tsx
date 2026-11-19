@@ -1,191 +1,177 @@
-import { type FormEvent, useMemo, useRef, useState } from "react";
-import { parseItems } from "./parseItems";
-import { useDictation } from "./useDictation";
-import { useItems } from "./useItems";
-import type { Item } from "./types";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { api, ApiError, setApiConfig } from "./api";
+import { completeSignIn, isSignedIn, onSessionChange, signOut } from "./auth";
+import { type AppConfig, loadConfig } from "./config";
+import { Home } from "./Home";
+import { SignIn } from "./SignIn";
+import type { HouseholdDetail, InvitePreview, Me } from "./types";
+import { JoinInvite, Welcome } from "./Welcome";
 
-const SUGGESTIONS = ["Milk", "Eggs", "Bread", "Bananas", "Coffee", "Butter"];
+const INVITE_KEY = "grocery.invite";
+const HH_KEY = "grocery.household";
 
-const CheckIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M5 12.5l4.5 4.5L19 7.5" />
-  </svg>
-);
-const CloseIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-    <path d="M6 6l12 12M18 6L6 18" />
-  </svg>
-);
-const PlusIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-    <path d="M12 5v14M5 12h14" />
-  </svg>
-);
-const MicIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="3" width="6" height="11" rx="3" />
-    <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" />
-  </svg>
-);
-const StopIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />
-  </svg>
-);
-const BagIcon = () => (
-  <svg viewBox="0 0 96 96" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M24 34h48l-4 44a6 6 0 0 1-6 5.5H34a6 6 0 0 1-6-5.5z" fill="currentColor" fillOpacity=".1" />
-    <path d="M36 34v-6a12 12 0 0 1 24 0v6" />
-    <path d="M42 58l5 5 9-10" />
-  </svg>
-);
+const store = {
+  get: (k: string) => {
+    try {
+      return localStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  },
+  set: (k: string, v: string | null) => {
+    try {
+      if (v === null) localStorage.removeItem(k);
+      else localStorage.setItem(k, v);
+    } catch {
+      /* ignore */
+    }
+  },
+};
 
-function Row({ item, onToggle, onRemove }: { item: Item; onToggle: () => void; onRemove: () => void }) {
-  return (
-    <li className={`row${item.checked ? " done" : ""}`}>
-      <button className="row-main" onClick={onToggle} aria-pressed={item.checked}>
-        <span className="check">
-          <CheckIcon />
-        </span>
-        <span className="name">{item.name}</span>
-      </button>
-      <button className="remove" onClick={onRemove} aria-label={`Remove ${item.name}`}>
-        <CloseIcon />
-      </button>
-    </li>
-  );
-}
+type Boot = { phase: "loading" } | { phase: "failed"; message: string } | { phase: "ready"; cfg: AppConfig; notice: string | null };
 
 export default function App() {
-  const { items, status, add, toggle, remove, clearChecked } = useItems();
-  const [text, setText] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [boot, setBoot] = useState<Boot>({ phase: "loading" });
+  const signedIn = useSyncExternalStore(onSessionChange, isSignedIn);
 
-  const { todo, done } = useMemo(() => {
-    const byCreated = (a: Item, b: Item) => a.createdAt.localeCompare(b.createdAt);
-    const byUpdatedDesc = (a: Item, b: Item) => b.updatedAt.localeCompare(a.updatedAt);
-    return {
-      todo: items.filter((i) => !i.checked).sort(byCreated),
-      done: items.filter((i) => i.checked).sort(byUpdatedDesc),
-    };
-  }, [items]);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const cfg = await loadConfig();
+        setApiConfig(cfg);
 
-  const dictation = useDictation((spoken) => parseItems(spoken).forEach(add));
+        // An invite link (?invite=...) is remembered across the sign-in redirect.
+        const url = new URL(window.location.href);
+        const invite = url.searchParams.get("invite");
+        if (invite) {
+          store.set(INVITE_KEY, invite);
+          url.searchParams.delete("invite");
+          window.history.replaceState(null, "", url.pathname + url.search);
+        }
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    add(text);
-    setText("");
-    inputRef.current?.focus(); // keep the keyboard up so several items can be added quickly
-  };
+        const notice = await completeSignIn(cfg);
+        setBoot({ phase: "ready", cfg, notice });
+      } catch (err) {
+        setBoot({ phase: "failed", message: (err as Error).message });
+      }
+    })();
+  }, []);
 
-  const subtitle =
-    status === "loading"
-      ? ""
-      : items.length === 0
-        ? "Your list is empty"
-        : todo.length === 0
-          ? "All done — nice!"
-          : `${todo.length} to get${done.length ? ` · ${done.length} in the cart` : ""}`;
-
-  return (
-    <div className="app">
-      <header className="header">
-        <h1>Groceries</h1>
-        <p>{subtitle}</p>
-      </header>
-
-      {dictation.error && <div className="banner" role="alert">{dictation.error}</div>}
-
-      {status === "error" && <div className="banner" role="status">Can’t reach the server — retrying…</div>}
-
-      <main className="main">
-        {status === "loading" ? (
-          <>
-            <div className="skeleton" />
-            <div className="skeleton" />
-            <div className="skeleton" />
-          </>
-        ) : items.length === 0 ? (
-          <div className="empty">
-            <BagIcon />
-            <h2>Nothing on the list</h2>
-            <p>Add something below, or tap a favorite.</p>
-            <div className="chips">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} className="chip" onClick={() => add(s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <>
-            {todo.length > 0 && (
-              <ul className="list">
-                {todo.map((i) => (
-                  <Row key={i.id} item={i} onToggle={() => toggle(i.id)} onRemove={() => remove(i.id)} />
-                ))}
-              </ul>
-            )}
-            {done.length > 0 && (
-              <>
-                <div className="section-head">
-                  <span>In the cart</span>
-                  <button className="link-btn" onClick={clearChecked}>
-                    Clear
-                  </button>
-                </div>
-                <ul className="list">
-                  {done.map((i) => (
-                    <Row key={i.id} item={i} onToggle={() => toggle(i.id)} onRemove={() => remove(i.id)} />
-                  ))}
-                </ul>
-              </>
-            )}
-          </>
-        )}
-      </main>
-
-      <div className="addbar">
-        {dictation.listening && (
-          <div className="listening" role="status" aria-live="polite">
-            <span className="pulse" />
-            <div>
-              <strong>Listening…</strong>
-              <p>{dictation.transcript || "Say what you need, e.g. “milk, eggs and bread”"}</p>
-            </div>
-          </div>
-        )}
-        <form onSubmit={submit}>
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Add an item…"
-            maxLength={80}
-            enterKeyHint="done"
-            autoComplete="off"
-            autoCapitalize="sentences"
-            aria-label="Add an item"
-          />
-          {dictation.supported && !text.trim() ? (
-            <button
-              className={`add-btn mic${dictation.listening ? " on" : ""}`}
-              type="button"
-              onClick={dictation.toggle}
-              aria-pressed={dictation.listening}
-              aria-label={dictation.listening ? "Stop and add items" : "Dictate items"}
-            >
-              {dictation.listening ? <StopIcon /> : <MicIcon />}
-            </button>
-          ) : (
-            <button className="add-btn" type="submit" disabled={!text.trim()} aria-label="Add">
-              <PlusIcon />
-            </button>
-          )}
-        </form>
+  if (boot.phase === "loading") return <div className="app center-screen" aria-busy="true" />;
+  if (boot.phase === "failed") {
+    return (
+      <div className="app center-screen">
+        <div className="banner" role="alert">{boot.message}</div>
       </div>
-    </div>
+    );
+  }
+  if (!signedIn) return <SignIn cfg={boot.cfg} notice={boot.notice} />;
+  return <Account cfg={boot.cfg} />;
+}
+
+/** Everything that needs a signed-in user: load the account, then route to the right screen. */
+function Account({ cfg }: { cfg: AppConfig }) {
+  const [me, setMe] = useState<Me | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [hid, setHid] = useState<string | null>(() => store.get(HH_KEY));
+  const [invite, setInvite] = useState<{ token: string; preview: InvitePreview } | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const logOut = useCallback(() => {
+    store.set(HH_KEY, null);
+    signOut(cfg);
+  }, [cfg]);
+
+  const loadMe = useCallback(async () => {
+    try {
+      setMe(await api.me());
+      setError(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return; // session ended; the sign-in screen takes over
+      setError((err as Error).message);
+    }
+  }, []);
+
+  const startInvite = useCallback(async (token: string) => {
+    try {
+      const preview = await api.previewInvite(token);
+      store.set(INVITE_KEY, null);
+      if (preview.alreadyMember) {
+        setHid(preview.householdId);
+        return;
+      }
+      setInvite({ token, preview });
+    } catch (err) {
+      store.set(INVITE_KEY, null);
+      setInviteError((err as Error).message);
+    }
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      await loadMe();
+      const pending = store.get(INVITE_KEY);
+      if (pending) await startInvite(pending);
+    })();
+  }, [loadMe, startInvite]);
+
+  const select = useCallback((id: string) => {
+    store.set(HH_KEY, id);
+    setHid(id);
+  }, []);
+
+  const joined = useCallback(
+    async (h: HouseholdDetail) => {
+      setInvite(null);
+      select(h.household.id);
+      await loadMe();
+    },
+    [loadMe, select],
+  );
+
+  if (error) {
+    return (
+      <div className="app center-screen">
+        <div className="banner" role="alert">{error}</div>
+        <button className="btn btn-secondary" onClick={() => void loadMe()}>
+          Try again
+        </button>
+        <button className="link-btn center" onClick={logOut}>Sign out</button>
+      </div>
+    );
+  }
+  if (!me) return <div className="app center-screen" aria-busy="true" />;
+
+  if (invite) {
+    return (
+      <JoinInvite
+        preview={invite.preview}
+        onAccept={async () => joined(await api.acceptInvite(invite.token))}
+        onDecline={() => setInvite(null)}
+      />
+    );
+  }
+
+  if (me.households.length === 0) {
+    return (
+      <>
+        {inviteError && <div className="banner floating" role="alert">{inviteError}</div>}
+        <Welcome me={me.user} onCreated={joined} onInviteToken={(t) => void startInvite(t)} onSignOut={logOut} />
+      </>
+    );
+  }
+
+  const current = me.households.find((h) => h.id === hid) ?? me.households[0]!;
+  return (
+    <Home
+      key={current.id}
+      me={me.user}
+      households={me.households}
+      hid={current.id}
+      onSwitchHousehold={select}
+      onAccountChanged={() => void loadMe()}
+      onCreatedHousehold={(h) => void joined(h)}
+      onSignOut={logOut}
+    />
   );
 }

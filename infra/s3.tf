@@ -43,3 +43,19 @@ resource "aws_s3_bucket_policy" "site" {
   policy     = data.aws_iam_policy_document.site.json
   depends_on = [aws_s3_bucket_public_access_block.site]
 }
+
+# Runtime config for the SPA (which sign-in providers exist, where Cognito lives).
+# Kept out of the build so one build works anywhere; deploy.sh's sync leaves it alone.
+resource "aws_s3_object" "config" {
+  bucket        = aws_s3_bucket.site.id
+  key           = "config.json"
+  content_type  = "application/json"
+  cache_control = "no-cache"
+
+  content = jsonencode({
+    region    = var.aws_region
+    domain    = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
+    clientId  = aws_cognito_user_pool_client.web.id
+    providers = local.sign_in_providers
+  })
+}

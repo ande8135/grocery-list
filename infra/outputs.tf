@@ -21,3 +21,16 @@ output "api_direct_url" {
 output "table_name" {
   value = aws_dynamodb_table.items.name
 }
+
+output "idp_redirect_uri" {
+  description = "Register this as the authorized redirect URI in Google / Apple / your OIDC provider."
+  value       = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com/oauth2/idpresponse"
+}
+
+output "user_pool_id" {
+  value = aws_cognito_user_pool.main.id
+}
+
+output "user_pool_client_id" {
+  value = aws_cognito_user_pool_client.web.id
+}

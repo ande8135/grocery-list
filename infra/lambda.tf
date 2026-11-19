@@ -34,11 +34,13 @@ resource "aws_iam_role" "api" {
 data "aws_iam_policy_document" "api" {
   statement {
     actions = [
+      "dynamodb:GetItem",
       "dynamodb:Query",
       "dynamodb:PutItem",
       "dynamodb:UpdateItem",
       "dynamodb:DeleteItem",
       "dynamodb:BatchWriteItem",
+      "dynamodb:ConditionCheckItem", # transactions are authorized by the underlying item actions
     ]
     resources = [aws_dynamodb_table.items.arn]
   }
@@ -80,7 +82,7 @@ resource "aws_lambda_function" "api" {
   depends_on = [aws_cloudwatch_log_group.api, aws_iam_role_policy_attachment.api_logs]
 }
 
-# ---------- Authorizer function (checks the CloudFront secret header) ----------
+# ---------- Authorizer function (CloudFront secret header + Cognito sign-in token) ----------
 
 resource "aws_iam_role" "authorizer" {
   name               = "${var.project_name}-authorizer"
@@ -106,11 +108,13 @@ resource "aws_lambda_function" "authorizer" {
   filename         = data.archive_file.backend.output_path
   source_code_hash = data.archive_file.backend.output_base64sha256
   memory_size      = 128
-  timeout          = 3
+  timeout          = 5 # first call per container downloads Cognito's signing keys
 
   environment {
     variables = {
       ORIGIN_VERIFY_SECRET = random_password.origin_verify.result
+      USER_POOL_ID         = aws_cognito_user_pool.main.id
+      USER_POOL_CLIENT_ID  = aws_cognito_user_pool_client.web.id
     }
   }
 
