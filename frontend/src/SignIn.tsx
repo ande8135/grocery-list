@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { devSignIn, startSignIn } from "./auth";
 import type { AppConfig } from "./config";
 import { BagIcon } from "./icons";
@@ -20,18 +20,20 @@ export function SignIn({ cfg, notice }: { cfg: AppConfig; notice?: string | null
       <div className="stack">
         {cfg.mode === "cognito" ? (
           <>
-            {cfg.providers.map((p) => (
-              <button
-                key={p.id}
-                className="btn btn-secondary"
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true);
-                  void startSignIn(cfg, p.id);
-                }}
-              >
-                Continue with {p.label}
-              </button>
+            {cfg.providers.map((p, i) => (
+              <Fragment key={p.id}>
+                {p.id === "COGNITO" && i > 0 && <div className="divider">or</div>}
+                <button
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    void startSignIn(cfg, p.id);
+                  }}
+                >
+                  Continue with {p.label}
+                </button>
+              </Fragment>
             ))}
             <p className="fineprint">We only use your name and email to show who’s in your household.</p>
           </>

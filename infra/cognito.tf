@@ -1,24 +1,57 @@
-# Sign-in: a Cognito user pool that only federates to external identity providers
-# (Google, Apple, any OIDC provider). Nobody creates a password here; Cognito
-# just brokers the sign-in and issues the tokens the API checks.
+# Sign-in: a Cognito user pool. People sign in with an external identity provider
+# (Google, Apple, any OIDC provider) and/or register with an email + password
+# (allow_email_password). Cognito's hosted pages handle all of it (registration, email
+# verification, password reset) and issue the tokens the API checks.
 
 resource "aws_cognito_user_pool" "main" {
   name = var.project_name
 
-  # No local sign-up: accounts only come from the federated providers.
+  # Email addresses are the usernames for password accounts. NOTE: changing this on an
+  # existing pool replaces the pool (and loses its users).
+  username_attributes      = ["email"]
+  auto_verified_attributes = ["email"]
+
+  # With this off, only federated sign-in works (nobody can self-register).
   admin_create_user_config {
-    allow_admin_create_user_only = true
+    allow_admin_create_user_only = !var.allow_email_password
   }
+
+  password_policy {
+    minimum_length    = 10
+    require_lowercase = true
+    require_uppercase = true
+    require_numbers   = true
+    require_symbols   = false
+  }
+
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
+    }
+  }
+
+  # Cognito's built-in email sender is limited to ~50 emails/day, plenty for a family.
+  # For more, switch to SES with email_configuration { email_sending_account = "DEVELOPER" }.
 }
 
+# Only used when no cognito_domain_prefix is given.
 resource "random_id" "cognito_domain" {
+  count       = var.cognito_domain_prefix == "" ? 1 : 0
   byte_length = 4
+}
+
+locals {
+  cognito_domain_prefix = var.cognito_domain_prefix != "" ? var.cognito_domain_prefix : "${var.project_name}-${try(random_id.cognito_domain[0].hex, "")}"
 }
 
 # Hosted sign-in domain: https://<prefix>.auth.<region>.amazoncognito.com
 resource "aws_cognito_user_pool_domain" "main" {
-  domain       = "${var.project_name}-${random_id.cognito_domain.hex}"
+  domain       = local.cognito_domain_prefix
   user_pool_id = aws_cognito_user_pool.main.id
+
+  # The classic hosted pages work out of the box; the newer "managed login" needs branding set up first.
+  managed_login_version = 1
 }
 
 locals {
@@ -26,6 +59,8 @@ locals {
     var.google_client_id != "" ? [{ id = "Google", label = "Google" }] : [],
     var.apple_services_id != "" ? [{ id = "SignInWithApple", label = "Apple" }] : [],
     [for name, p in var.oidc_providers : { id = name, label = coalesce(p.label, name) }],
+    # "COGNITO" = the hosted email + password form; listed last so social buttons come first.
+    var.allow_email_password ? [{ id = "COGNITO", label = "email" }] : [],
   )
 
   callback_urls = concat(
@@ -131,7 +166,7 @@ resource "aws_cognito_user_pool_client" "web" {
   lifecycle {
     precondition {
       condition     = length(local.sign_in_providers) > 0
-      error_message = "Configure at least one sign-in provider (google_client_id, apple_services_id, or oidc_providers)."
+      error_message = "Enable at least one way to sign in: allow_email_password, google_client_id, apple_services_id, or oidc_providers."
     }
   }
 }

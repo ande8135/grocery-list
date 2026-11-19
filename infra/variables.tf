@@ -34,9 +34,36 @@ variable "log_retention_days" {
   default     = 14
 }
 
-# ---------- Sign-in providers ----------
-# Configure at least one. Leave a provider's id empty ("") to disable it.
+# ---------- Sign-in ----------
+# Google and email + password are on by default. Leave a provider's id empty ("") to disable it.
 # Redirect URI to register with each provider: see the `idp_redirect_uri` output.
+
+variable "cognito_domain_prefix" {
+  description = <<-EOT
+    Prefix of the hosted sign-in domain: https://<prefix>.auth.<region>.amazoncognito.com
+    Must be unique within the region. Choose it BEFORE the first apply and you can register the
+    provider redirect URI (https://<prefix>.auth.<region>.amazoncognito.com/oauth2/idpresponse)
+    up front. Leave empty to get "<project_name>-<random>".
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.cognito_domain_prefix == "" || can(regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", var.cognito_domain_prefix))
+    error_message = "Use 1-63 lowercase letters, numbers and hyphens, not starting or ending with a hyphen."
+  }
+
+  validation {
+    condition     = !can(regex("aws|amazon|cognito", var.cognito_domain_prefix))
+    error_message = "Cognito doesn't allow \"aws\", \"amazon\" or \"cognito\" in the domain prefix."
+  }
+}
+
+variable "allow_email_password" {
+  description = "Let people register and sign in with an email address and password (Cognito verifies the email with a code)."
+  type        = bool
+  default     = true
+}
 
 variable "google_client_id" {
   description = "Google OAuth client ID (Google Cloud Console > Credentials > OAuth client, type Web)."

@@ -83,7 +83,8 @@ export async function startSignIn(cfg: Extract<AppConfig, { mode: "cognito" }>, 
     state,
     code_challenge: challenge,
     code_challenge_method: "S256",
-    identity_provider: providerId,
+    // "COGNITO" = Cognito's own email + password page; anything else skips straight to that provider.
+    ...(providerId === "COGNITO" ? {} : { identity_provider: providerId }),
   }).toString();
   window.location.assign(url.toString());
 }
