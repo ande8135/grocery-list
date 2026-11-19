@@ -1,4 +1,6 @@
 import { type FormEvent, useMemo, useRef, useState } from "react";
+import { parseItems } from "./parseItems";
+import { useDictation } from "./useDictation";
 import { useItems } from "./useItems";
 import type { Item } from "./types";
 
@@ -17,6 +19,17 @@ const CloseIcon = () => (
 const PlusIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
     <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+const MicIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" />
+  </svg>
+);
+const StopIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />
   </svg>
 );
 const BagIcon = () => (
@@ -57,6 +70,8 @@ export default function App() {
     };
   }, [items]);
 
+  const dictation = useDictation((spoken) => parseItems(spoken).forEach(add));
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     add(text);
@@ -79,6 +94,8 @@ export default function App() {
         <h1>Groceries</h1>
         <p>{subtitle}</p>
       </header>
+
+      {dictation.error && <div className="banner" role="alert">{dictation.error}</div>}
 
       {status === "error" && <div className="banner" role="status">Can’t reach the server — retrying…</div>}
 
@@ -131,6 +148,15 @@ export default function App() {
       </main>
 
       <div className="addbar">
+        {dictation.listening && (
+          <div className="listening" role="status" aria-live="polite">
+            <span className="pulse" />
+            <div>
+              <strong>Listening…</strong>
+              <p>{dictation.transcript || "Say what you need, e.g. “milk, eggs and bread”"}</p>
+            </div>
+          </div>
+        )}
         <form onSubmit={submit}>
           <input
             ref={inputRef}
@@ -143,9 +169,21 @@ export default function App() {
             autoCapitalize="sentences"
             aria-label="Add an item"
           />
-          <button className="add-btn" type="submit" disabled={!text.trim()} aria-label="Add">
-            <PlusIcon />
-          </button>
+          {dictation.supported && !text.trim() ? (
+            <button
+              className={`add-btn mic${dictation.listening ? " on" : ""}`}
+              type="button"
+              onClick={dictation.toggle}
+              aria-pressed={dictation.listening}
+              aria-label={dictation.listening ? "Stop and add items" : "Dictate items"}
+            >
+              {dictation.listening ? <StopIcon /> : <MicIcon />}
+            </button>
+          ) : (
+            <button className="add-btn" type="submit" disabled={!text.trim()} aria-label="Add">
+              <PlusIcon />
+            </button>
+          )}
         </form>
       </div>
     </div>

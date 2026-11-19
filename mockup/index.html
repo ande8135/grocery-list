@@ -372,6 +372,47 @@ button {
 }
 
 
+/* ---------- Dictation ---------- */
+
+.add-btn.mic.on {
+  background: var(--danger);
+  color: #fff;
+  animation: mic-pulse 1.4s infinite;
+}
+.listening {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: row-in 0.2s ease-out;
+}
+.listening strong {
+  font-size: 15px;
+}
+.listening p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.pulse {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: mic-pulse 1.4s infinite;
+}
+@keyframes mic-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+
 /* ---------- Mockup-only: phone frames for desktop review ---------- */
 .review { min-height: 100vh; background: #e9e4da; padding: 40px 20px 60px; font-family: ui-rounded, system-ui, sans-serif; color: #23302a; }
 .review > h1 { text-align: center; margin: 0; font-size: 22px; }
@@ -384,7 +425,7 @@ button {
 .screen { --app-h: 100%; height: 100%; border-radius: 38px; overflow: auto; background: var(--bg); position: relative; scrollbar-width: none; }
 .screen::-webkit-scrollbar { display: none; }
 .screen .header { padding-top: 54px; }
-.review .row { animation: none; } /* the mockup re-renders wholesale; avoid replaying the entry animation */
+.review .row, .review .listening { animation: none; } /* the mockup re-renders wholesale; avoid replaying the entry animation */
 @media (max-width: 480px) {
   .review { padding: 0; background: none; }
   .review > h1, .review > p, .phone-wrap .label, .phone-wrap:not(:first-child) { display: none; }
@@ -397,7 +438,7 @@ button {
 <body>
 <div class="review">
   <h1>Groceries — design mockup</h1>
-  <p>Static preview, no backend. The first phone is interactive: tap items to check them off, ✕ to remove, type below to add, “Clear” to empty the cart. On a phone this page shows just that screen full-size.</p>
+  <p>Static preview, no backend. The first phone is interactive: tap the mic to simulate dictation (tap again to add the spoken items), tap items to check them off, ✕ to remove, type below to add, “Clear” to empty the cart. On a phone this page shows just that screen full-size.</p>
   <div class="stage" id="stage"></div>
 </div>
 
@@ -406,12 +447,20 @@ const ICONS = {
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></svg>',
   bag: '<svg viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 34h48l-4 44a6 6 0 0 1-6 5.5H34a6 6 0 0 1-6-5.5z" fill="currentColor" fill-opacity=".1"/><path d="M36 34v-6a12 12 0 0 1 24 0v6"/><path d="M42 58l5 5 9-10"/></svg>'
 };
 const SUGGESTIONS = ['Milk','Eggs','Bread','Bananas','Coffee','Butter'];
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-function mount(root, theme, initial) {
+const DEMO_PHRASE = 'add milk, eggs and a loaf of bread';
+// Simplified version of the app's parseItems(), enough for the demo.
+const parse = t => t.split(/\s*(?:[,;.]|\b(?:and|then|also|plus)\b)\s*/i)
+  .map(x => x.trim().replace(/^(?:add|we need|get)\s+/i, '').replace(/^(?:(?:a|an|the|some)\s+)+/i, '')).filter(Boolean);
+
+function mount(root, theme, initial, opts = {}) {
+  let listening = !!opts.listening, spoken = opts.transcript || '', timer = null;
   let items = initial.map((x, i) => ({ id: i + 1, name: x[0], checked: x[1] }));
   let nextId = 100;
   const row = i => '<li class="row' + (i.checked ? ' done' : '') + '"><button class="row-main" data-toggle="' + i.id + '"><span class="check">' + ICONS.check + '</span><span class="name">' + esc(i.name) + '</span></button><button class="remove" data-remove="' + i.id + '" aria-label="Remove">' + ICONS.close + '</button></li>';
@@ -425,10 +474,11 @@ function mount(root, theme, initial) {
       (!items.length ? '<div class="empty">' + ICONS.bag + '<h2>Nothing on the list</h2><p>Add something below, or tap a favorite.</p><div class="chips">' + SUGGESTIONS.map(s => '<button class="chip" data-chip="' + s + '">' + s + '</button>').join('') + '</div></div>'
         : (todo.length ? '<ul class="list">' + todo.map(row).join('') + '</ul>' : '') +
           (done.length ? '<div class="section-head"><span>In the cart</span><button class="link-btn" data-clear>Clear</button></div><ul class="list">' + done.map(row).join('') + '</ul>' : '')) +
-      '</main><div class="addbar"><form><input placeholder="Add an item…" autocomplete="off" aria-label="Add an item"><button class="add-btn" type="submit" disabled aria-label="Add">' + ICONS.plus + '</button></form></div></div>';
-    const input = root.querySelector('input'), btn = root.querySelector('.add-btn');
-    input.value = val; btn.disabled = !val.trim();
-    input.oninput = () => btn.disabled = !input.value.trim();
+      '</main><div class="addbar">' +
+      (listening ? '<div class="listening" role="status"><span class="pulse"></span><div><strong>Listening…</strong><p>' + (spoken ? esc(spoken) : 'Say what you need, e.g. “milk, eggs and bread”') + '</p></div></div>' : '') + '<form><input placeholder="Add an item…" autocomplete="off" aria-label="Add an item">' + (val.trim() ? '<button class="add-btn" type="submit" aria-label="Add">' + ICONS.plus + '</button>' : '<button class="add-btn mic' + (listening ? ' on' : '') + '" type="button" data-mic aria-label="Dictate items">' + (listening ? ICONS.stop : ICONS.mic) + '</button>') + '</form></div></div>';
+    const input = root.querySelector('input');
+    input.value = val;
+    input.oninput = () => { if (!!input.value.trim() !== !!val.trim()) render(); };
     if (hadFocus) input.focus();
     root.querySelector('form').onsubmit = e => { e.preventDefault(); add(input.value); input.value = ''; render(); root.querySelector('input').focus(); };
   }
@@ -441,7 +491,19 @@ function mount(root, theme, initial) {
   }
   root.onclick = e => {
     const t = e.target.closest('button'); if (!t) return;
-    if (t.dataset.toggle) { const i = items.find(x => x.id == t.dataset.toggle); i.checked = !i.checked; }
+    if ('mic' in t.dataset) {
+      if (!listening) {
+        listening = true; spoken = '';
+        if (!opts.listening) { // interactive phone: simulate speech arriving word by word
+          const words = DEMO_PHRASE.split(' '); let n = 0;
+          timer = setInterval(() => { spoken = words.slice(0, ++n).join(' '); if (n >= words.length) clearInterval(timer); render(); }, 450);
+        }
+      } else {
+        clearInterval(timer); listening = false;
+        parse(spoken || DEMO_PHRASE).forEach(add); spoken = '';
+      }
+    }
+    else if (t.dataset.toggle) { const i = items.find(x => x.id == t.dataset.toggle); i.checked = !i.checked; }
     else if (t.dataset.remove) items = items.filter(x => x.id != t.dataset.remove);
     else if (t.dataset.chip) add(t.dataset.chip);
     else if ('clear' in t.dataset) items = items.filter(x => !x.checked);
@@ -452,16 +514,17 @@ function mount(root, theme, initial) {
 }
 
 const screens = [
-  ['Shopping list', 'Interactive', null, [['Sourdough bread',0],['Bananas',0],['Olive oil',0],['Chicken thighs',0],['Greek yogurt',0],['Whole milk',1],['Eggs',1]]],
+  ['Shopping list', 'Interactive, including a simulated mic', null, [['Sourdough bread',0],['Bananas',0],['Olive oil',0],['Chicken thighs',0],['Greek yogurt',0],['Whole milk',1],['Eggs',1]]],
   ['First run', 'Empty state with quick-add favorites', null, []],
+  ['Dictation', 'Tap the mic, say your list, tap again', null, [['Bananas',0],['Olive oil',0],['Eggs',1]], { listening: true, transcript: 'add milk, eggs and a loaf of bread' }],
   ['Dark mode', 'Follows the phone’s setting automatically', 'dark', [['Pasta',0],['Tomatoes',0],['Parmesan',0],['Basil',1],['Garlic',1]]],
 ];
 const stage = document.getElementById('stage');
-for (const [title, sub, theme, data] of screens) {
+for (const [title, sub, theme, data, opts] of screens) {
   const wrap = document.createElement('div'); wrap.className = 'phone-wrap';
   wrap.innerHTML = '<div class="phone"><div class="screen"></div></div><div class="label">' + title + '<small>' + sub + '</small></div>';
   stage.appendChild(wrap);
-  mount(wrap.querySelector('.screen'), theme, data);
+  mount(wrap.querySelector('.screen'), theme, data, opts);
 }
 </script>
 </body>

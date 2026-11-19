@@ -34,6 +34,12 @@ The API is not reachable except through CloudFront:
 
 (HTTP APIs don't support resource policies or WAF, hence the authorizer. Switching to a REST API + WAF is the alternative if you want it later.)
 
+## Voice dictation
+
+When the input is empty, the right-hand button is a mic. Tap it, say "milk, eggs and a loaf of bread", tap again, and three items are added. It uses the browser's built-in Web Speech API, so there is no backend, cost or extra infrastructure; the mic button simply doesn't appear in browsers without support (e.g. Firefox). `frontend/src/parseItems.ts` splits the transcript into items (commas, "and", "then"...; strips "add", "we need", "a", "some"...). Known limit: "mac and cheese" becomes two items.
+
+Upgrade path if the rules prove too crude: add `POST /api/items/parse` that sends the transcript text (not audio) to an LLM (e.g. Bedrock) and returns item names.
+
 ## Local development
 
 ```bash

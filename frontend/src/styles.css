@@ -363,3 +363,44 @@ button {
     transition: none !important;
   }
 }
+
+/* ---------- Dictation ---------- */
+
+.add-btn.mic.on {
+  background: var(--danger);
+  color: #fff;
+  animation: mic-pulse 1.4s infinite;
+}
+.listening {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: row-in 0.2s ease-out;
+}
+.listening strong {
+  font-size: 15px;
+}
+.listening p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.pulse {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: mic-pulse 1.4s infinite;
+}
+@keyframes mic-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
