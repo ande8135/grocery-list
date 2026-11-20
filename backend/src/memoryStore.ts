@@ -1,4 +1,4 @@
-import type { ItemStore, Store } from "./store";
+import type { CategoryMemory, ItemStore, Store } from "./store";
 import type { GroceryList, Household, Invite, Item, ItemPatch, Member, Membership, User } from "./types";
 
 class MemoryItems implements ItemStore {
@@ -44,9 +44,21 @@ class MemoryItems implements ItemStore {
   }
 }
 
+class MemoryCategories implements CategoryMemory {
+  private rows = new Map<string, string>(); // `${hid}/${key}`
+  async get(householdId: string, key: string) {
+    return this.rows.get(`${householdId}/${key}`) ?? null;
+  }
+  async set(householdId: string, key: string, category: string, _expiresAt: number, overwrite: boolean) {
+    const k = `${householdId}/${key}`;
+    if (overwrite || !this.rows.has(k)) this.rows.set(k, category);
+  }
+}
+
 /** In-memory Store used by tests and the local dev server. Mirrors the DynamoDB store's semantics. */
 export class MemoryStore implements Store {
   items = new MemoryItems();
+  categories = new MemoryCategories();
   private users = new Map<string, User>();
   private households = new Map<string, Household>();
   private members = new Map<string, Member>(); // `${hid}/${uid}`

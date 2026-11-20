@@ -212,6 +212,24 @@ button {
   font-weight: 500;
 }
 
+.move {
+  flex: none;
+  width: 44px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  opacity: 0.7;
+}
+.move svg {
+  width: 18px;
+  height: 18px;
+}
+.move:active {
+  color: var(--accent);
+  opacity: 1;
+}
+
 .remove {
   flex: none;
   width: 52px;
@@ -739,4 +757,41 @@ button {
     transform: translateY(40px);
     opacity: 0;
   }
+}
+
+/* Store-section picker (bottom sheet) */
+.cat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.cat-opt {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 17px;
+  font-weight: 600;
+  text-align: left;
+}
+.cat-list li:first-child .cat-opt {
+  border-top: 0;
+}
+.cat-opt:active {
+  background: var(--accent-soft);
+}
+.cat-opt.current {
+  color: var(--accent);
+}
+.cat-opt svg {
+  width: 20px;
+  height: 20px;
 }

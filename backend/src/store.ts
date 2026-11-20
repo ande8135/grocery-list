@@ -24,6 +24,19 @@ export interface ItemStore {
 }
 
 /**
+ * What a household has decided each item belongs to ("banana" -> produce), keyed by
+ * `categoryKey(name)`. Checked before asking the model, and written whenever someone moves an item.
+ */
+export interface CategoryMemory {
+  get(householdId: string, key: string): Promise<string | null>;
+  /**
+   * Remembers a category. With `overwrite: false` an existing answer is kept, so a model guess
+   * can never replace what a person chose. `expiresAt` is epoch seconds (the table's TTL attribute).
+   */
+  set(householdId: string, key: string, category: string, expiresAt: number, overwrite: boolean): Promise<void>;
+}
+
+/**
  * Storage port. Every method that touches more than one record is atomic
  * (a DynamoDB transaction in AWS), because the household rules are invariants:
  *  - a user owns at most one household,
@@ -33,6 +46,7 @@ export interface ItemStore {
  */
 export interface Store {
   items: ItemStore;
+  categories: CategoryMemory;
 
   upsertUser(user: { userId: string; email: string; name: string }, now: string): Promise<User>;
   getUser(userId: string): Promise<User | null>;

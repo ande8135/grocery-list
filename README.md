@@ -28,19 +28,40 @@ They use the app's real stylesheet, so what you see is what ships.
 
 Households can't be deleted and ownership can't be transferred yet, which is how "a user can only ever own one household" stays simple and true.
 
+## Store sections
+
+Items on a list are grouped by where they are in the store (Produce, Bakery, Meat & seafood, Dairy & eggs, Frozen, Pantry, Snacks, Beverages, Household, Personal care, Other), in roughly the order you walk through one. The tag button on a row lets anyone move an item to a different section.
+
+How an item gets its section when it's added (`Service.categoryFor`):
+
+1. **The household's memory.** Every household remembers what it decided for each item ("banana" is Produce), whoever moved it. A lookup ignores case, punctuation and simple plurals, so "Bananas" and "banana" match. If it's known, that's the answer and nothing else runs.
+2. **A small model on Amazon Bedrock** (Claude Haiku 5.5), only for an item the household hasn't had before. It may only answer with one of the fixed sections; anything else is ignored. The answer is remembered, so each household asks about each item about once.
+3. **"Other"**, if the model is switched off, slow (4 s limit), unreachable, or gives an unusable answer. Adding an item never fails or waits long because of this, and a failed guess isn't remembered, so it's tried again next time.
+
+A person moving an item always wins: it overwrites the remembered answer, and a later model guess never replaces it. Only the item's name is sent to the model, never who or which household it came from.
+
+It's **off by default** (`enable_categorization = false`) because the model has to be enabled for your AWS account first. To turn it on:
+
+1. In the AWS console open **Amazon Bedrock → Model access** (in the region you'll use) and enable **Claude Haiku 5.5**. It isn't open to every account by default, so check the status shows as granted.
+2. Set `enable_categorization = true` in `infra/terraform.tfvars` (and `bedrock_region` if Bedrock should be called in a different region than `aws_region`), then run `./scripts/deploy.sh`. Terraform gives the API Lambda permission to call the model and tells it which one.
+3. Add an item the app hasn't seen (say "gochujang") and check it lands in a section. If everything stays in "Other", look in CloudWatch Logs `/aws/lambda/<project>-api` for `Categorizer call failed`; the error says whether it's model access or permissions.
+
+Items added before this existed have no section and show under "Other" until someone moves them or adds them again. Cost for a family: a few cents a month at most (about 300 tokens in and a handful out per *new* item). Locally (`npm run dev`) a small built-in keyword list stands in for the model, so there's nothing to set up.
+
 ## How it works
 
 ```
 Phone ──► CloudFront ──┬─ /*      ──► S3 (private, via Origin Access Control)   static files + config.json
                        └─ /api/*  ──► API Gateway (HTTP API) ──► Lambda ──► DynamoDB
+                                                                   └──► Bedrock (new items only, optional)
                           + secret header         │
                           + Authorization: Bearer │ Lambda authorizer: checks both
                                                   ▼
 Sign-in: browser ◄──► Cognito hosted UI ◄──► Google (or email + password)
 ```
 
-- **Frontend** (`frontend/`): Vite + React + TypeScript. Signs in with Cognito's hosted UI using the authorization-code flow with PKCE. Optimistic updates, and it polls every 5 s (lists and members every 15 s) so changes from other people show up on their own. Installable to the home screen. Voice dictation via the browser's speech recognition.
-- **Backend** (`backend/`): TypeScript Lambda (Node 22). Rules live in `service.ts`, storage behind an interface (`store.ts`) with DynamoDB and in-memory implementations.
+- **Frontend** (`frontend/`): Vite + React + TypeScript. Signs in with Cognito's hosted UI using the authorization-code flow with PKCE. Optimistic updates, and it polls every 5 s (lists and members every 15 s) so changes from other people show up on their own. Installable to the home screen. Voice dictation via the browser's speech recognition. Items are grouped into store sections (see below).
+- **Backend** (`backend/`): TypeScript Lambda (Node 22). Rules live in `service.ts`, storage behind an interface (`store.ts`) with DynamoDB and in-memory implementations. Store sections are picked through a small `Categorizer` interface (`categorizer.ts`), implemented for Bedrock in `bedrockCategorizer.ts`.
 - **Infra** (`infra/`): Terraform for S3, CloudFront, API Gateway, Lambdas, DynamoDB and Cognito.
 
 ### API
@@ -56,7 +77,7 @@ All routes are under `/api` and need a signed-in user.
 | `DELETE /households/{hid}/members/{uid}` | Owner removes someone, or a member leaves (their own id) |
 | `GET /invites/{token}`, `POST /invites/{token}/accept` | Preview / accept an invite |
 | `POST /households/{hid}/lists`, `PATCH`/`DELETE .../lists/{lid}` | Manage lists (max 10) |
-| `GET`/`POST .../lists/{lid}/items`, `PATCH`/`DELETE .../items/{id}`, `POST .../items/clear-checked` | Items |
+| `GET`/`POST .../lists/{lid}/items`, `PATCH`/`DELETE .../items/{id}`, `POST .../items/clear-checked` | Items. Each has a `category`; `PATCH` takes `name`, `checked` and/or `category` (moving an item teaches the household) |
 
 Someone who isn't in a household gets 404 for anything inside it, so ids never reveal whether a household exists.
 
@@ -69,7 +90,8 @@ Someone who isn't in a household gets 404 for anything inside it, so ids never r
 | `HH#<hid>` | `META` | household, with `listCount` |
 | `HH#<hid>` | `MEMBER#<uid>` | household-side membership |
 | `HH#<hid>` | `LIST#<lid>` | list |
-| `LIST#<lid>` | `ITEM#<id>` | grocery item |
+| `LIST#<lid>` | `ITEM#<id>` | grocery item, with its `category` |
+| `HH#<hid>` | `CAT#<name key>` | what the household decided an item's section is; `expiresAt` (a year out, refreshed on each write) is the TTL |
 | `INVITE#<token>` | `INVITE` | invite; `expiresAt` is the table's TTL attribute |
 
 The three rules are enforced with DynamoDB conditions inside transactions, so they hold even with simultaneous requests: one owned household per user (condition on the user profile), at most 10 lists (condition on `listCount`, changed together with the new list), invites usable once (the invite is deleted in the same transaction that adds the member).

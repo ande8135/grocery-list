@@ -7,6 +7,8 @@ export interface Item {
   id: string;
   name: string;
   checked: boolean;
+  /** A store section id from categories.ts. Items from before sections existed read as "other". */
+  category: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -14,6 +16,7 @@ export interface Item {
 export interface ItemPatch {
   name?: string;
   checked?: boolean;
+  category?: string;
 }
 
 /** The signed-in person, taken from the verified Cognito ID token. */

@@ -1,4 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { CATEGORY_OPTIONS, type CategoryId, DEFAULT_CATEGORY, categoryKey, isCategoryId } from "./categories";
+import { type Categorizer, noopCategorizer } from "./categorizer";
 import { HttpError } from "./errors";
 import type { Store } from "./store";
 import {
@@ -7,9 +9,13 @@ import {
   INVITE_TTL_SECONDS,
   type Invite,
   type Item,
+  type ItemPatch,
   MAX_LISTS_PER_HOUSEHOLD,
   type Member,
 } from "./types";
+
+/** How long a household's remembered answer lives. Re-saved whenever it is set again. */
+const CATEGORY_MEMORY_TTL_SECONDS = 365 * 24 * 60 * 60;
 
 const ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
 
@@ -35,6 +41,7 @@ export class Service {
   constructor(
     private readonly store: Store,
     private readonly clock: () => Date = () => new Date(),
+    private readonly categorizer: Categorizer = noopCategorizer,
   ) {}
 
   private now() {
@@ -61,6 +68,36 @@ export class Service {
     const list = await this.store.getList(hid, lid);
     if (!list) throw notFound();
     return list;
+  }
+
+  /**
+   * The store section for an item name: what this household decided before, else the
+   * categorizer's guess (remembered for next time), else "other".
+   * A failed guess is not remembered, so it is tried again the next time that item is added.
+   */
+  private async categoryFor(hid: string, name: string): Promise<CategoryId> {
+    const key = categoryKey(name);
+    const known = await this.store.categories.get(hid, key);
+    if (isCategoryId(known)) return known;
+
+    let guess: CategoryId | null = null;
+    try {
+      guess = await this.categorizer.categorize(name);
+    } catch (err) {
+      console.error("Categorizer threw", err);
+    }
+    if (!guess) return DEFAULT_CATEGORY;
+    await this.remember(hid, key, guess, false);
+    return guess;
+  }
+
+  /** Never fails the request: losing a remembered answer only means asking again later. */
+  private async remember(hid: string, key: string, category: CategoryId, overwrite: boolean) {
+    try {
+      await this.store.categories.set(hid, key, category, this.nowSeconds() + CATEGORY_MEMORY_TTL_SECONDS, overwrite);
+    } catch (err) {
+      console.error("Could not remember a category", err);
+    }
   }
 
   // ---------- account ----------
@@ -104,6 +141,7 @@ export class Service {
     if (!household) throw notFound();
     return {
       household: { id: household.id, name: household.name, ownerId: household.ownerId, role: me.role, maxLists: MAX_LISTS_PER_HOUSEHOLD },
+      categories: CATEGORY_OPTIONS,
       members: members
         .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
         .map((m) => ({ userId: m.userId, name: m.name, email: m.email, role: m.role })),
@@ -214,23 +252,43 @@ export class Service {
       if (typeof body.id !== "string" || !ID_PATTERN.test(body.id)) throw new HttpError(400, "id is invalid");
       id = body.id;
     }
+    const name = cleanText(body.name, "name", 80);
+    const category = await this.categoryFor(hid, name);
     const now = this.now();
-    const item: Item = { id, name: cleanText(body.name, "name", 80), checked: false, createdAt: now, updatedAt: now };
+    const item: Item = { id, name, checked: false, category, createdAt: now, updatedAt: now };
     if (!(await this.store.items.create(lid, item))) throw new HttpError(409, "Item already exists");
     return item;
   }
 
-  async updateItem(auth: AuthUser, hid: string, lid: string, id: string, body: { name?: unknown; checked?: unknown }) {
+  async updateItem(
+    auth: AuthUser,
+    hid: string,
+    lid: string,
+    id: string,
+    body: { name?: unknown; checked?: unknown; category?: unknown },
+  ) {
     await this.requireList(hid, lid, auth.userId);
-    const patch: { name?: string; checked?: boolean } = {};
+    const patch: ItemPatch = {};
     if (body.name !== undefined) patch.name = cleanText(body.name, "name", 80);
     if (body.checked !== undefined) {
       if (typeof body.checked !== "boolean") throw new HttpError(400, "checked must be a boolean");
       patch.checked = body.checked;
     }
+    if (body.category !== undefined) {
+      if (!isCategoryId(body.category)) throw new HttpError(400, "category is invalid");
+      patch.category = body.category;
+    }
     if (Object.keys(patch).length === 0) throw new HttpError(400, "Nothing to update");
+
+    // Renaming an item means it may belong somewhere else, unless the person also chose a section.
+    if (patch.name !== undefined && patch.category === undefined) patch.category = await this.categoryFor(hid, patch.name);
+
     const item = await this.store.items.update(lid, id, patch, this.now());
     if (!item) throw notFound();
+    // A person moving an item is the household's decision: it wins over any earlier guess, for everyone.
+    if (body.category !== undefined && isCategoryId(body.category)) {
+      await this.remember(hid, categoryKey(item.name), body.category, true);
+    }
     return item;
   }
 

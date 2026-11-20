@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { FALLBACK_CATEGORY } from "./categories";
 import type { Item } from "./types";
 
 const POLL_MS = 5000;
@@ -104,11 +105,22 @@ export function useItems(hid: string, lid: string) {
       const id = newId();
       const now = new Date().toISOString();
       void mutate(
-        (prev) => [...prev, { id, name, checked: false, createdAt: now, updatedAt: now }],
+        (prev) => [...prev, { id, name, category: FALLBACK_CATEGORY, checked: false, createdAt: now, updatedAt: now }], // the server sorts it; the next refresh moves it
         () => api.addItem(hid, lid, id, name),
       );
     },
     [mutate, setChecked, hid, lid],
+  );
+
+  const setCategory = useCallback(
+    (id: string, category: string) => {
+      const now = new Date().toISOString();
+      return mutate(
+        (prev) => prev.map((i) => (i.id === id ? { ...i, category, updatedAt: now } : i)),
+        () => api.setCategory(hid, lid, id, category),
+      );
+    },
+    [mutate, hid, lid],
   );
 
   const toggle = useCallback(
@@ -137,5 +149,5 @@ export function useItems(hid: string, lid: string) {
     [mutate, hid, lid],
   );
 
-  return { items, status, add, toggle, remove, clearChecked };
+  return { items, status, add, toggle, remove, clearChecked, setCategory };
 }

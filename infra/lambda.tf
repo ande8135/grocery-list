@@ -52,6 +52,23 @@ resource "aws_iam_role_policy" "api" {
   policy = data.aws_iam_policy_document.api.json
 }
 
+# Calling Claude on Bedrock. Anthropic's Bedrock docs name this action but don't publish a resource ARN
+# format, so the resource is "*" for now. The action only allows invoking models, nothing else in Bedrock.
+# Once you know the ARN of the model in your account (it shows in the Bedrock console), narrow this.
+data "aws_iam_policy_document" "bedrock" {
+  statement {
+    actions   = ["bedrock-mantle:CreateInference"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "api_bedrock" {
+  count  = var.enable_categorization ? 1 : 0
+  name   = "bedrock-invoke"
+  role   = aws_iam_role.api.id
+  policy = data.aws_iam_policy_document.bedrock.json
+}
+
 resource "aws_iam_role_policy_attachment" "api_logs" {
   role       = aws_iam_role.api.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
@@ -74,9 +91,14 @@ resource "aws_lambda_function" "api" {
   timeout          = 10
 
   environment {
-    variables = {
-      TABLE_NAME = aws_dynamodb_table.items.name
-    }
+    variables = merge(
+      { TABLE_NAME = aws_dynamodb_table.items.name },
+      # With these unset the API skips the model and every new item lands in "Other".
+      var.enable_categorization ? {
+        BEDROCK_MODEL_ID = var.bedrock_model_id
+        BEDROCK_REGION   = var.bedrock_region != "" ? var.bedrock_region : var.aws_region
+      } : {},
+    )
   }
 
   depends_on = [aws_cloudwatch_log_group.api, aws_iam_role_policy_attachment.api_logs]

@@ -34,6 +34,31 @@ variable "log_retention_days" {
   default     = 14
 }
 
+# ---------- Store sections (Amazon Bedrock) ----------
+
+variable "enable_categorization" {
+  description = <<-EOT
+    Sort new items into store sections (Produce, Dairy & eggs, ...) with a small Claude model on Amazon Bedrock.
+    Off by default because the model must first be enabled for your AWS account in the Bedrock console
+    (Model access). Until then, leave this false: items just go in "Other". The model is only asked about
+    items a household hasn't added before; it remembers the answer.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "bedrock_model_id" {
+  description = "Bedrock model id used to pick the section. Claude Haiku 5.5 is the small, cheap one."
+  type        = string
+  default     = "anthropic.claude-haiku-5-5"
+}
+
+variable "bedrock_region" {
+  description = "Region to call Bedrock in. Empty means the same as aws_region. Must be a region where the model is available."
+  type        = string
+  default     = ""
+}
+
 # ---------- Sign-in ----------
 # Google and email + password are on by default. Leave a provider's id empty ("") to disable it.
 # Redirect URI to register with each provider: see the `idp_redirect_uri` output.

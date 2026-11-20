@@ -9,7 +9,8 @@ import {
   TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { ItemStore, Store } from "./store";
+import { isCategoryId } from "./categories";
+import type { CategoryMemory, ItemStore, Store } from "./store";
 import type { GroceryList, Household, Invite, Item, ItemPatch, Member, Membership, User } from "./types";
 
 /**
@@ -20,7 +21,8 @@ import type { GroceryList, Household, Invite, Item, ItemPatch, Member, Membershi
  *   HH#<hid>        META            household (+ listCount, guarded by a condition)
  *   HH#<hid>        MEMBER#<uid>    household-side membership
  *   HH#<hid>        LIST#<lid>      list
- *   LIST#<lid>      ITEM#<id>       grocery item
+ *   LIST#<lid>      ITEM#<id>       grocery item (+ category)
+ *   HH#<hid>        CAT#<key>       what the household decided an item's section is; `expiresAt` is the TTL
  *   INVITE#<token>  INVITE          invite; `expiresAt` is the table's TTL attribute
  */
 const key = {
@@ -64,6 +66,7 @@ class DynamoItems implements ItemStore {
       id: String(row.sk).slice("ITEM#".length),
       name: String(row.name),
       checked: Boolean(row.checked),
+      category: isCategoryId(row.category) ? row.category : "other",
       createdAt: String(row.createdAt),
       updatedAt: String(row.updatedAt),
     };
@@ -97,6 +100,7 @@ class DynamoItems implements ItemStore {
             sk: `ITEM#${item.id}`,
             name: item.name,
             checked: item.checked,
+            category: item.category,
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
           },
@@ -123,6 +127,11 @@ class DynamoItems implements ItemStore {
       sets.push("#checked = :checked");
       names["#checked"] = "checked";
       values[":checked"] = patch.checked;
+    }
+    if (patch.category !== undefined) {
+      sets.push("#category = :category");
+      names["#category"] = "category";
+      values[":category"] = patch.category;
     }
     try {
       const res = await this.doc.send(
@@ -176,8 +185,38 @@ class DynamoItems implements ItemStore {
   }
 }
 
+class DynamoCategories implements CategoryMemory {
+  constructor(
+    private readonly doc: DynamoDBDocumentClient,
+    private readonly table: string,
+  ) {}
+
+  async get(householdId: string, key: string): Promise<string | null> {
+    const res = await this.doc.send(
+      new GetCommand({ TableName: this.table, Key: { pk: `HH#${householdId}`, sk: `CAT#${key}` } }),
+    );
+    return typeof res.Item?.category === "string" ? res.Item.category : null;
+  }
+
+  async set(householdId: string, key: string, category: string, expiresAt: number, overwrite: boolean): Promise<void> {
+    try {
+      await this.doc.send(
+        new PutCommand({
+          TableName: this.table,
+          Item: { pk: `HH#${householdId}`, sk: `CAT#${key}`, category, expiresAt },
+          ConditionExpression: overwrite ? undefined : "attribute_not_exists(pk)",
+        }),
+      );
+    } catch (err) {
+      if (err instanceof ConditionalCheckFailedException) return; // someone already decided; keep it
+      throw err;
+    }
+  }
+}
+
 export class DynamoStore implements Store {
   readonly items: ItemStore;
+  readonly categories: CategoryMemory;
   private readonly doc: DynamoDBDocumentClient;
 
   constructor(
@@ -186,6 +225,7 @@ export class DynamoStore implements Store {
   ) {
     this.doc = DynamoDBDocumentClient.from(client, { marshallOptions: { removeUndefinedValues: true } });
     this.items = new DynamoItems(this.doc, table);
+    this.categories = new DynamoCategories(this.doc, table);
   }
 
   private async get<T>(k: { pk: string; sk: string }): Promise<T | null> {

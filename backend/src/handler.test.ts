@@ -64,6 +64,29 @@ describe("HTTP layer", () => {
     expect((await call("GET /api/households/{hid}", { user: "bob", params: { hid } })).status).toBe(404);
   });
 
+  it("lets a person move an item to another store section", async () => {
+    const created = await call("POST /api/households", { body: { name: "Home" } });
+    const hid = created.json.household.id;
+    const lid = created.json.lists[0].id;
+    expect(created.json.categories.map((c: { id: string }) => c.id)).toContain("produce");
+
+    const added = await call("POST /api/households/{hid}/lists/{lid}/items", { params: { hid, lid }, body: { name: "Milk" } });
+    expect(added.json.item.category).toBe("other"); // no categorizer in this handler
+    const id = added.json.item.id;
+
+    const moved = await call("PATCH /api/households/{hid}/lists/{lid}/items/{id}", {
+      params: { hid, lid, id },
+      body: { category: "dairy-eggs" },
+    });
+    expect(moved.status).toBe(200);
+    expect(moved.json.item.category).toBe("dairy-eggs");
+    const listed = await call("GET /api/households/{hid}/lists/{lid}/items", { params: { hid, lid } });
+    expect(listed.json.items[0].category).toBe("dairy-eggs");
+
+    const bad = await call("PATCH /api/households/{hid}/lists/{lid}/items/{id}", { params: { hid, lid, id }, body: { category: "nope" } });
+    expect(bad.status).toBe(400);
+  });
+
   it("covers exactly the routes API Gateway declares in Terraform", () => {
     const tf = readFileSync(new URL("../../infra/api_gateway.tf", import.meta.url), "utf8");
     const block = /routes\s*=\s*\[([\s\S]*?)\]/.exec(tf)?.[1] ?? "";

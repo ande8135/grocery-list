@@ -1,16 +1,29 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { HouseholdSheet } from "./HouseholdSheet";
-import { ChevronIcon, CheckIcon, CloseIcon, MicIcon, PlusIcon, StopIcon, BagIcon } from "./icons";
+import { groupByCategory, showSectionHeadings } from "./categories";
+import { ChevronIcon, CheckIcon, CloseIcon, MicIcon, PlusIcon, StopIcon, BagIcon, TagIcon } from "./icons";
 import { ListSheet } from "./ListSheet";
 import { parseItems } from "./parseItems";
-import type { HouseholdDetail, Item, Me } from "./types";
+import { Sheet } from "./Sheet";
+import type { Category, HouseholdDetail, Item, Me } from "./types";
 import { useDictation } from "./useDictation";
 import { useHousehold } from "./useHousehold";
 import { useItems } from "./useItems";
 
 const SUGGESTIONS = ["Milk", "Eggs", "Bread", "Bananas", "Coffee", "Butter"];
 
-function Row({ item, onToggle, onRemove }: { item: Item; onToggle: () => void; onRemove: () => void }) {
+function Row({
+  item,
+  onToggle,
+  onRemove,
+  onMove,
+}: {
+  item: Item;
+  onToggle: () => void;
+  onRemove: () => void;
+  /** Open the "which section" picker. Left out for items already in the cart. */
+  onMove?: () => void;
+}) {
   return (
     <li className={`row${item.checked ? " done" : ""}`}>
       <button className="row-main" onClick={onToggle} aria-pressed={item.checked}>
@@ -19,10 +32,48 @@ function Row({ item, onToggle, onRemove }: { item: Item; onToggle: () => void; o
         </span>
         <span className="name">{item.name}</span>
       </button>
+      {onMove && (
+        <button className="move" onClick={onMove} aria-label={`Change section for ${item.name}`}>
+          <TagIcon />
+        </button>
+      )}
       <button className="remove" onClick={onRemove} aria-label={`Remove ${item.name}`}>
         <CloseIcon />
       </button>
     </li>
+  );
+}
+
+/** Pick the store section an item belongs to. The household remembers the choice for next time. */
+function MoveSheet({
+  item,
+  categories,
+  onPick,
+  onClose,
+}: {
+  item: Item;
+  categories: Category[];
+  onPick: (categoryId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet title={`Where does “${item.name}” go?`} onClose={onClose}>
+      <ul className="cat-list">
+        {categories.map((c) => (
+          <li key={c.id}>
+            <button
+              className={`cat-opt${c.id === item.category ? " current" : ""}`}
+              onClick={() => onPick(c.id)}
+              aria-pressed={c.id === item.category}
+            >
+              <span>{c.label}</span>
+              {c.id === item.category && <CheckIcon />}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="sheet-note">Your household will remember this for next time.</p>
+    </Sheet>
   );
 }
 
@@ -143,8 +194,9 @@ function ListScreen({
   onNewList: () => void;
   onEditList: () => void;
 }) {
-  const { items, status, add, toggle, remove, clearChecked } = useItems(hid, list.id);
+  const { items, status, add, toggle, remove, clearChecked, setCategory } = useItems(hid, list.id);
   const [text, setText] = useState("");
+  const [movingId, setMovingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { todo, done } = useMemo(() => {
@@ -155,6 +207,11 @@ function ListScreen({
       done: items.filter((i) => i.checked).sort(byUpdatedDesc),
     };
   }, [items]);
+
+  const groups = useMemo(() => groupByCategory(todo, detail.categories), [todo, detail.categories]);
+  const headings = showSectionHeadings(groups);
+  // Looked up by id so the picker closes by itself if someone else removes the item meanwhile.
+  const moving = movingId ? items.find((i) => i.id === movingId) : undefined;
 
   const dictation = useDictation((spoken) => parseItems(spoken).forEach(add));
 
@@ -236,13 +293,26 @@ function ListScreen({
           </div>
         ) : (
           <>
-            {todo.length > 0 && (
-              <ul className="list">
-                {todo.map((i) => (
-                  <Row key={i.id} item={i} onToggle={() => toggle(i.id)} onRemove={() => remove(i.id)} />
-                ))}
-              </ul>
-            )}
+            {groups.map((g) => (
+              <Fragment key={g.id}>
+                {headings && (
+                  <div className="section-head">
+                    <span>{g.label}</span>
+                  </div>
+                )}
+                <ul className="list">
+                  {g.items.map((i) => (
+                    <Row
+                      key={i.id}
+                      item={i}
+                      onToggle={() => toggle(i.id)}
+                      onRemove={() => remove(i.id)}
+                      onMove={() => setMovingId(i.id)}
+                    />
+                  ))}
+                </ul>
+              </Fragment>
+            ))}
             {done.length > 0 && (
               <>
                 <div className="section-head">
@@ -261,6 +331,18 @@ function ListScreen({
           </>
         )}
       </main>
+
+      {moving && (
+        <MoveSheet
+          item={moving}
+          categories={detail.categories}
+          onClose={() => setMovingId(null)}
+          onPick={(id) => {
+            if (id !== moving.category) void setCategory(moving.id, id);
+            setMovingId(null);
+          }}
+        />
+      )}
 
       <div className="addbar">
         {dictation.listening && (

@@ -9,11 +9,12 @@
  */
 import { createServer } from "node:http";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
+import { devCategorizer } from "./categorizer";
 import { createHandler, ROUTE_KEYS } from "./handler";
 import { MemoryStore } from "./memoryStore";
 import { Service } from "./service";
 
-const handler = createHandler(new Service(new MemoryStore()));
+const handler = createHandler(new Service(new MemoryStore(), undefined, devCategorizer));
 const port = Number(process.env.PORT ?? 3001);
 
 const routes = ROUTE_KEYS.map((key) => {

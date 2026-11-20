@@ -14,6 +14,10 @@ allow_email_password = true
 google_client_id     = ""
 google_client_secret = ""
 
+# Sort new items into store sections (Produce, Dairy & eggs...) with Claude Haiku on Amazon Bedrock.
+# Needs the model enabled in the Bedrock console first (see README, "Store sections"). Costs a few cents a month.
+enable_categorization = false
+
 # --- Not used for now; fill in later to add them (no other changes needed) ---
 
 # Apple: Services ID + Sign in with Apple key (https://developer.apple.com/account/resources)

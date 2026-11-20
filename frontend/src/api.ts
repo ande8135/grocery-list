@@ -70,6 +70,8 @@ export const api = {
     request<unknown>(`${li(hid, lid)}/items`, { method: "POST", body: { id, name } }),
   setChecked: (hid: string, lid: string, id: string, checked: boolean) =>
     request<unknown>(`${li(hid, lid)}/items/${encodeURIComponent(id)}`, { method: "PATCH", body: { checked } }),
+  setCategory: (hid: string, lid: string, id: string, category: string) =>
+    request<unknown>(`${li(hid, lid)}/items/${encodeURIComponent(id)}`, { method: "PATCH", body: { category } }),
   removeItem: (hid: string, lid: string, id: string) =>
     request<void>(`${li(hid, lid)}/items/${encodeURIComponent(id)}`, { method: "DELETE" }),
   clearChecked: (hid: string, lid: string) =>
